@@ -14,7 +14,10 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install requests beautifulsoup4
-      - run: python update_acs_lockers.py
+      - name: Build merged ACS directory
+        env:
+          ACS_SECOND_SOURCE_URL: ${{ vars.ACS_SECOND_SOURCE_URL }}
+        run: python update_acs_lockers.py
       - name: Commit updates
         run: |
           git config user.name 'github-actions[bot]'

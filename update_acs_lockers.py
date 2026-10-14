@@ -1,62 +1,76 @@
 #!/usr/bin/env python3
-"""Create Shopify-compatible locker JSON from the PUBLIC ACS lockers directory.
-Directory publication is NOT confirmation of live locker availability.
-"""
+"""ACS public directory export. Not live availability or shipment routing authorization."""
+import csv
 import datetime as dt
 import json
 import re
 from pathlib import Path
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
+
 import requests
 from bs4 import BeautifulSoup
 
-URL = 'https://www.acscourier.net/el/acs-lockers/'
+ROOT = 'https://www.acscourier.net/el/acs-lockers/'
 OUT = Path(__file__).with_name('acs-lockers.json')
-HEADERS = {'User-Agent': 'ACS-Locker-Directory-Exporter/1.0 (merchant inventory sync)'}
+OVERRIDES = Path(__file__).with_name('acs-locker-overrides.csv')
+HEADERS = {'User-Agent': 'Mozilla/5.0 (compatible; merchant-directory-sync/1.1)'}
 
 def parse_directory(html):
     soup = BeautifulSoup(html, 'html.parser')
-    found = {}
-    # Directory presents a numbered HTML table with detail-page links.
-    for row in soup.select('tr'):
-        cells = row.find_all(['td', 'th'], recursive=False)
+    rows = {}
+    # Use the actual table cells; don't reject records that don't say "smartpoint".
+    for tr in soup.select('tr'):
+        cells = tr.find_all('td', recursive=False)
         if len(cells) < 2:
             continue
-        code = cells[0].get_text(' ', strip=True)
-        a = cells[1].find('a', href=True)
-        if not re.fullmatch(r'\d{3,8}', code) or not a:
+        code = cells[0].get_text(' ',strip=True)
+        if not re.fullmatch(r'\d{3,8}', code):
             continue
-        name = re.sub(r'\s+', ' ', a.get_text(' ', strip=True)).strip()
-        if not re.search(r'(?:smart\s*point|smartpoint|locker)', name, re.I):
+        link = cells[1].find('a',href=True)
+        if not link:
             continue
-        href = urljoin(URL, a['href'])
-        if not href.startswith('https://www.acscourier.net/el/acs-lockers/'):
+        url = urljoin(ROOT,link['href'])
+        u = urlparse(url)
+        if u.netloc.lower() not in ('www.acscourier.net','acscourier.net') or '/el/acs-lockers/' not in u.path or u.path.rstrip('/') == '/el/acs-lockers':
             continue
-        found[code] = {
-            'code': code,
-            'name': name,
-            'Country_Code': 'GR',
-            'is_locker': True,
-            'type': 'locker',
-            'source_url': href,
-            # Directory index does not consistently publish these fields.
-            'address': '',
-            'city': '',
-            'postcode': '',
-        }
-    return sorted(found.values(), key=lambda item: int(item['code']))
+        name = re.sub(r'\s+',' ',link.get_text(' ',strip=True)).strip()
+        if not name:
+            continue
+        rows[code] = {'code':code,'name':name,'Country_Code':'GR','is_locker':True,
+                      'type':'locker','source_url':url,'address':'','city':'','postcode':'',
+                      'search_aliases':''}
+    return sorted(rows.values(),key=lambda r:int(r['code']))
+
+def overlay(records):
+    """Optional verified merchant data; postcode/city must not be invented."""
+    if not OVERRIDES.exists():
+        return records
+    idx = {r['code']:r for r in records}
+    with OVERRIDES.open(encoding='utf-8-sig',newline='') as f:
+        for row in csv.DictReader(f):
+            code = str(row.get('code','')).strip()
+            if code not in idx:
+                continue
+            for key in ('address','city','postcode','search_aliases','venue_name'):
+                if row.get(key, '').strip():
+                    idx[code][key] = row[key].strip()
+    return records
 
 def main():
-    response = requests.get(URL, headers=HEADERS, timeout=35)
-    response.raise_for_status()
-    records = parse_directory(response.text)
-    if len(records) < 100:
-        raise RuntimeError(f'Only {len(records)} lockers parsed; refusing to overwrite existing feed')
-    data = {'updated_at_utc': dt.datetime.now(dt.timezone.utc).isoformat(),
-            'source': URL, 'note': 'Public ACS directory, not real-time availability',
-            'points': records}
-    OUT.write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
-    print(f'Saved {len(records)} unique directory locker entries to {OUT}')
+    r = requests.get(ROOT,headers=HEADERS,timeout=45)
+    r.raise_for_status()
+    records = overlay(parse_directory(r.text))
+    old_count = 0
+    if OUT.exists():
+        try: old_count=len(json.loads(OUT.read_text(encoding='utf-8')).get('points',[]))
+        except (ValueError,TypeError): pass
+    # Safety rails: fail if parser breaks or directory suddenly shrinks drastically.
+    if len(records)<500 or (old_count >= 500 and len(records) < old_count * 0.85):
+        raise RuntimeError(f'Found only {len(records)} lockers (previous: {old_count}); not overwriting. Check directory HTML.')
+    payload = {'updated_at_utc':dt.datetime.now(dt.timezone.utc).isoformat(),
+               'source':ROOT,'note':'ACS published directory, NOT real-time locker availability',
+               'count':len(records),'points':records}
+    OUT.write_text(json.dumps(payload,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+    print('Parsed:',len(records),'previous:',old_count,'saved:',OUT)
 
-if __name__ == '__main__':
-    main()
+if __name__=='__main__': main()

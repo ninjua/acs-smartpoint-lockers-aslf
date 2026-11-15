@@ -1,12 +1,12 @@
 {
-  "updated_at_utc": "2026-11-13T12:18:23.875912+00:00",
+  "updated_at_utc": "2026-11-15T12:00:29.022690+00:00",
   "source": "https://www.acscourier.net/el/acs-lockers/",
   "secondary_source": null,
   "note": "ACS public directory; not live availability or shipping authorization",
-  "count": 1848,
+  "count": 1850,
   "with_postcode": 0,
   "with_address": 0,
-  "detail_page_failures": 0,
+  "detail_page_failures": 1,
   "secondary_fields_added": 0,
   "points": [
     {
@@ -24027,6 +24027,32 @@
       "is_locker": true,
       "type": "locker",
       "source_url": "https://www.acscourier.net/el/acs-lockers/acs-smartpoint-locker-acharnes-eko/",
+      "address": "",
+      "city": "",
+      "postcode": "",
+      "venue_name": "",
+      "search_aliases": ""
+    },
+    {
+      "code": "3077",
+      "name": "ΑCS Smartpoint Locker Κάτω Πετράλωνα",
+      "Country_Code": "GR",
+      "is_locker": true,
+      "type": "locker",
+      "source_url": "https://www.acscourier.net/el/acs-lockers/acs-smartpoint-locker-kato-petralona/",
+      "address": "",
+      "city": "",
+      "postcode": "",
+      "venue_name": "",
+      "search_aliases": ""
+    },
+    {
+      "code": "3078",
+      "name": "ACS Smartpoint Locker Λάρισα (Market Plus)",
+      "Country_Code": "GR",
+      "is_locker": true,
+      "type": "locker",
+      "source_url": "https://www.acscourier.net/el/acs-lockers/acs-smartpoint-locker-larisa-market-plus/",
       "address": "",
       "city": "",
       "postcode": "",
